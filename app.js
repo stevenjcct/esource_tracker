@@ -64,28 +64,10 @@
     }).join("")}</ol>`;
   }
 
-  function stageForm(b, st) {
-    const next = S.nextStage(b);
-    if (!next) return "";
-    const isDone = next.k === "completionDate";
-    const extra = isDone ? `
-      <label>Completed by<select name="completedBy" id="cb-${b.id}">${st.people.map((p) => opt(p, p, b.completedBy || b.assignedTo || st.person)).join("")}</select></label>
-      <label>Testing rounds to pass<input name="uatTries" id="ut-${b.id}" type="number" min="1" step="1" value="${esc(b.uatTries ?? "")}" required></label>
-      <label>Versions before approval<input name="versions" id="vs-${b.id}" type="number" min="1" step="1" value="${esc(b.versions ?? "")}" required></label>
-      <label>Source adjustments<input name="sourceAdjustments" id="sa-${b.id}" type="number" min="0" step="1" value="${esc(b.sourceAdjustments ?? 0)}"></label>` : "";
-    return `
-      <form class="stage-form" data-action="stage" data-id="${b.id}" data-k="${next.k}">
-        ${extra}
-        <label>Date<input type="date" name="date" id="dt-${b.id}" value="${D.today()}" required></label>
-        <button type="submit" class="btn primary">${esc(next.action)}</button>
-      </form>`;
-  }
-
   function buildCard(b, st) {
     const next = S.nextStage(b);
     const sch = S.schedule(b);
     const missing = S.missingInfo(b);
-    const last = S.lastDoneStage(b);
     return `
     <article class="task">
       <div class="task-main">
@@ -96,13 +78,11 @@
         </div>
         <div class="tags">${b.location ? `<span class="tag">${esc(b.location)}</span>` : ""}${b.totalVisits ? `<span class="tag">${b.totalVisits} visits</span>` : ""}${flags(b)}</div>
         ${stepper(b)}
-        ${next ? `<p class="next">Next: <strong>${esc(next.label)}</strong></p>` : ""}
+        ${next ? `<p class="next">Next: <strong>${esc(next.label)}</strong>. Record it in Edit details.</p>` : ""}
         ${missing.length ? `<p class="missing">Missing: ${esc(missing.join(", "))}</p>` : ""}
-        ${stageForm(b, st)}
       </div>
       <div class="task-side">
         <button type="button" class="btn" data-action="edit" data-id="${b.id}">Edit details</button>
-        ${last ? `<button type="button" class="link" data-action="undo-stage" data-id="${b.id}">Undo “${esc(last.short)}”</button>` : ""}
       </div>
     </article>`;
   }
@@ -117,16 +97,13 @@
     const mine = st.builds.filter((b) => b.assignedTo === st.person && !b.completionDate).sort(byUrgency);
     const doneMine = st.builds.filter((b) => (b.completedBy === st.person || b.assignedTo === st.person) && b.completionDate).sort((a, b) => b.completionDate.localeCompare(a.completionDate));
     const unassigned = st.builds.filter((b) => !b.assignedTo && !b.completionDate);
-    const open = st.builds.filter((b) => !b.completionDate);
-    const count = (k, list) => list.filter((b) => S.schedule(b).key === k).length;
-    const hours = weekHours(st, st.person);
 
     return `
     <div class="split">
       <section class="main-col" aria-labelledby="work-h">
         <div class="section-head">
           <h1 id="work-h">${esc(st.person)}’s builds</h1>
-          <span class="muted">${plural(mine.length, "open build")}, most urgent first</span>
+          <div class="row-gap"><span class="muted">${plural(mine.length, "open build")}, most urgent first</span><button type="button" class="btn" data-action="new">Add a build</button></div>
         </div>
         ${mine.length ? mine.map((b) => buildCard(b, st)).join("") : `<div class="empty">No open builds assigned to ${esc(st.person)}. Claim one from the queue below or add a new build.</div>`}
 
@@ -147,24 +124,6 @@
         </section>
       </section>
 
-      <aside class="side-col">
-        <section class="card">
-          <h2>Team at a glance</h2>
-          <dl class="facts">
-            <div><dt>Open builds</dt><dd>${open.length}</dd></div>
-            <div><dt>Overdue</dt><dd class="${count("overdue", open) ? "warn" : ""}">${count("overdue", open)}</dd></div>
-            <div><dt>Due within ${st.targets.atRiskDays} days</dt><dd>${count("atrisk", open)}</dd></div>
-            <div><dt>No due date</dt><dd>${count("nodue", open)}</dd></div>
-          </dl>
-          <button type="button" class="btn primary block" data-action="new">Add a build</button>
-        </section>
-        <section class="card">
-          <h2>Your hours this week</h2>
-          <p class="goal-num"><strong>${S.round1(hours)}</strong> of 40 h allocated</p>
-          ${bar((hours / 40) * 100, hours > 40 ? "over thick" : "thick")}
-          <button type="button" class="btn block" data-action="tab" data-v="time">Allocate time</button>
-        </section>
-      </aside>
     </div>`;
   }
 
@@ -534,10 +493,6 @@
       case "new": openEditor(null); break;
       case "edit": openEditor(id); break;
       case "claim": { let name; S.update((st) => { const b = findBuild(st, id); b.assignedTo = st.person; name = b.study; }); flash(`${name} assigned to you.`); break; }
-      case "undo-stage": S.update((st) => {
-        const b = findBuild(st, id); const last = S.lastDoneStage(b);
-        if (last) { b[last.k] = ""; if (last.k === "completionDate") b.completedBy = ""; }
-      }); break;
       case "week": S.update((st) => { st.week = Number(v) === 0 ? D.mondayOf(D.today()) : D.addDays(st.week, Number(v)); }); break;
       case "remove-row": S.update((st) => { const w = st.time[st.week]; w[st.person] = w[st.person].filter((r) => r.id !== id); }); break;
       case "copy-week": S.update((st) => {
@@ -584,31 +539,7 @@
     const form = e.target;
     e.preventDefault();
     const fd = new FormData(form);
-    if (form.dataset.action === "stage") {
-      const date = fd.get("date");
-      if (!date) return;
-      const cur = S.get().builds.find((x) => x.id === form.dataset.id);
-      const prev = S.lastDoneStage(cur);
-      if (prev && date < cur[prev.k]) {
-        alert(`That date is before “${prev.label}” (${D.fmtDate(cur[prev.k])}). Pick a later date, or fix the earlier date with Edit details.`);
-        return;
-      }
-      let msg = "";
-      S.update((st) => {
-        const b = findBuild(st, form.dataset.id);
-        const k = form.dataset.k;
-        b[k] = date;
-        if (k === "completionDate") {
-          b.completedBy = fd.get("completedBy") || b.assignedTo;
-          b.uatTries = fd.get("uatTries") === "" ? null : Number(fd.get("uatTries"));
-          b.versions = fd.get("versions") === "" ? null : Number(fd.get("versions"));
-          b.sourceAdjustments = fd.get("sourceAdjustments") === "" ? 0 : Number(fd.get("sourceAdjustments"));
-          const s = S.schedule(b);
-          msg = `${b.study} complete. ${s.detail}.`;
-        }
-      });
-      if (msg) flash(msg);
-    } else if (form.dataset.action === "add-row") {
+    if (form.dataset.action === "add-row") {
       const ref = fd.get("ref");
       if (!ref) return;
       S.update((st) => {
