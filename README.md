@@ -1,95 +1,60 @@
 # eSource Build Tracker
 
-A lightweight web app for the eSource team. It shows each person what to do next on their studies, tracks QC to EOS progress against the 2026 goal, and lets everyone allocate their weekly hours to studies and assignments.
+A web app for the eSource team to track study builds. For each build it shows what has to happen next and whether the build is on schedule, and it records the QC measures for the build. Each person can also allocate their weekly hours to builds and other assignments.
 
-This is a **prototype for team review**. It runs entirely in the browser with no server, database or build step.
+This is a **prototype for team review**. It runs entirely in the browser, with no server, database or build step.
 
-## What it does
+## What it tracks for each build
 
-**My next steps.** Each person sees their open studies in order: QC in progress, then ready to start, then studies that still need setup. From each card you can:
+| Area | Fields |
+|---|---|
+| Study | Study, site, area, standard or custom, total overall visits |
+| People | Assigned to, completed by |
+| Schedule | Due date, completion date |
+| Milestones | Protocol finalization, CCG finalization, CRF finalization, configuration date, acceptance testing start |
+| QC | CCGs provided (yes/no), blank eCRFs provided (yes/no), testing rounds to pass, versions before approval, source adjustments, notes |
 
-- set the QC start visit and visit count,
-- start QC,
-- log visits as they're QC'd,
-- mark the study complete.
+## Screens
 
-An unassigned queue lets people claim the next study.
+**My builds.** Each person's open builds, with overdue builds first. Each card shows the build steps, the next step, and any missing information. A **one-click button marks the next step done**. When you complete a build, the card asks for "completed by", testing rounds, versions and source adjustments. Unassigned builds can be claimed from the queue.
 
-**All studies.** All 27 studies from the 2026 list, with filters for site, status and owner. You can change the owner inline and export the list to CSV.
+**All builds.** Every build in one table, with filters for site, person and schedule. Select a study to edit any field. You can also reassign builds inline and export the table to CSV.
 
-**Time allocation.** A Monday–Friday timesheet per person and per week:
+**QC and KPIs.** These are calculated automatically from the build data:
 
-- add a row for any study or for admin, training or general build work,
-- choose the activity,
-- enter hours per day.
+- on-time completion and overdue builds,
+- days between milestones,
+- passed testing on the first try and average testing rounds,
+- versions before approval (target under 4),
+- builds without CCGs or blank eCRFs (target under 5 without eCRFs),
+- source adjustments,
+- standard versus custom builds,
+- a breakdown by person.
 
-Days over 8 hours and weeks over 40 hours are flagged. "Copy last week's rows" sets up a new week quickly.
+**Time allocation.** A Monday–Friday timesheet per person and week, with daily and weekly capacity checks and a team view.
 
-**Team and goals.** Shows each person's hours against capacity and their open studies, plus a week-by-week runway toward **26 studies QC'd to EOS by Dec 31, 2026** (plan: 2–3 a week). It also lists the build KPIs from the metrics dashboard and the data each one needs.
+Schedule status works like this. An open build is **Overdue** after its due date and **Due soon** within 7 days of it. A completed build is **Completed on time** or **Completed late** based on its due date. If no CCGs were provided, the CCG finalization step is skipped.
 
-## Run it
+## Example data
 
-Download or clone the repo and open `index.html` in a browser. That's all.
+The study list comes from the 2026 goals workbook, with build dates left blank for the team to fill in. To see how the KPIs work before real data exists, click **Load example builds** in the footer. This adds six made-up builds labelled EXAMPLE. Click **Remove example builds** to take them out.
 
-To serve it locally instead, run:
+## Files
 
-```bash
-python3 -m http.server 8000
-# then open http://localhost:8000
-```
-
-## Put it on GitHub Pages
-
-1. Create a new repository (for example `esource-build-tracker`) and push these files to the `main` branch.
-2. In the repo, go to **Settings › Pages**.
-3. Under **Build and deployment**, set **Source** to *Deploy from a branch*, choose `main` and `/ (root)`, and click **Save**.
-4. After a minute the site is live at `https://<your-org-or-user>.github.io/esource-build-tracker/`.
-
-The repo has to be public for GitHub Pages to work on a free plan, so don't commit anything you wouldn't want public. GitHub Enterprise can publish Pages privately to your organization.
-
-```bash
-git init
-git add .
-git commit -m "eSource Build Tracker prototype"
-git branch -M main
-git remote add origin https://github.com/<your-org-or-user>/esource-build-tracker.git
-git push -u origin main
-```
-
-## Where the data lives
-
-- **Starting data** is in `js/data.js`. It came from:
-  - `End_of_Year_Goals_2026_Source.xlsx`: studies, sites, visit counts, owners and QC start dates.
-  - `eSource_Clinical_Study_Build_Metrics_Dashboard.xlsx`: the KPI list.
-- **Changes people make** are saved in their own browser (`localStorage`). They are **not shared** between people or computers.
-- Use **Download backup** and **Restore backup** in the footer to move data between browsers. Use **Export hours CSV** or **Export studies CSV** to get data into Excel.
-- The hours in the current week are example data so the demo isn't empty. Use **Clear example hours** to remove them, or empty `demoHours` in `js/data.js`.
-- Keep patient information out of this tool. It tracks study and visit metadata only.
-
-## Project layout
+All files sit at the top level of the repo:
 
 ```
-index.html        Page shell
-css/styles.css    Styles (light and dark mode)
-js/data.js        Seed data: people, studies, goal, KPIs, example hours
-js/store.js       State, saving, date helpers, CSV/JSON export and import
-js/app.js         Screens and interactions
+index.html   Page shell
+styles.css   Styles (light and dark mode)
+data.js      People, study list, targets, example builds and hours
+store.js     Data model, schedule and KPI calculations, saving, CSV/JSON export
+app.js       Screens and interactions
 ```
 
-Everything is plain HTML, CSS and JavaScript, so there are no dependencies to install.
+To change the team members, targets (such as versions under 4), or the starting study list, edit `data.js`.
 
-## Next steps toward a team tool
+## Viewing it
 
-The prototype stores data per browser. To make it a shared tool, replace the save and load functions in `js/store.js` with one of these:
+Turn on **Settings › Pages** (branch `main`, folder `/ (root)`), then open `https://<user>.github.io/<repo>/`. Locally, you can double-click `index.html`.
 
-1. **SharePoint list + Power Apps / Power BI.** This fits the Microsoft 365 setup. The screens here work as the spec for the Power App, and the KPI table maps straight to a Power BI report.
-2. **SharePoint list via Microsoft Graph.** Keep this web UI and read and write the list with MSAL sign-in. This needs an Entra ID app registration from IT.
-3. **A small hosted backend** (for example Azure Static Web Apps with Azure Functions and a database).
-
-To calculate the build KPIs, add these per-study fields:
-
-- protocol, CCGs and blank eCRFs received dates,
-- build start, first full draft, UAT start and UAT sign-off dates,
-- publish date,
-- version count,
-- flags for passed UAT first time and post-production change.
+Data is saved in each person's browser and is not shared between people. Use **Download backup** and **Restore backup** to move data between browsers. For hosting on Azure with Microsoft sign-in and shared data, replace `load()` and `save()` in `store.js` with calls to an API. The screens don't need to change.
